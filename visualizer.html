@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Graph-Based Friend Recommendation</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f0f0f5;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    .controls {
+      margin: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .controls input, .controls select, .controls button {
+      padding: 8px;
+      font-size: 14px;
+    }
+    canvas {
+      border: 1px solid #aaa;
+      background-color: #fff;
+    }
+    .log {
+      margin-top: 20px;
+      max-height: 150px;
+      overflow-y: auto;
+      width: 80%;
+      font-family: monospace;
+      background: #222;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Friend Recommendation System (Graph-Based)</h1>
+  <div class="controls">
+    <input type="text" id="user1" placeholder="User 1 (e.g. A)" />
+    <input type="text" id="user2" placeholder="User 2 (e.g. B)" />
+    <button onclick="addConnection()">Add Friend</button>
+    <button onclick="removeConnection()">Remove Friend</button>
+    <input type="text" id="recommendUser" placeholder="Recommend for (e.g. A)" />
+    <select id="algo">
+      <option value="BFS">BFS</option>
+      <option value="DFS">DFS</option>
+    </select>
+    <button onclick="showRecommendations()">Show Recommendations</button>
+    <button onclick="drawGraph()">Redraw Graph</button>
+  </div>
+  <canvas id="graphCanvas" width="800" height="500"></canvas>
+  <div class="log" id="log"></div>
+
+  <script>
+    const canvas = document.getElementById("graphCanvas");
+    const ctx = canvas.getContext("2d");
+    const logDiv = document.getElementById("log");
+
+    const graph = new Map();
+
+    function log(msg) {
+      logDiv.textContent += msg + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function addConnection() {
+      const u1 = document.getElementById("user1").value.trim();
+      const u2 = document.getElementById("user2").value.trim();
+      if (!u1 || !u2 || u1 === u2) return;
+      if (!graph.has(u1)) graph.set(u1, new Set());
+      if (!graph.has(u2)) graph.set(u2, new Set());
+      graph.get(u1).add(u2);
+      graph.get(u2).add(u1);
+      log(`Added connection between ${u1} and ${u2}`);
+      drawGraph();
+    }
+
+    function removeConnection() {
+      const u1 = document.getElementById("user1").value.trim();
+      const u2 = document.getElementById("user2").value.trim();
+      if (graph.has(u1)) graph.get(u1).delete(u2);
+      if (graph.has(u2)) graph.get(u2).delete(u1);
+      log(`Removed connection between ${u1} and ${u2}`);
+      drawGraph();
+    }
+
+    function showRecommendations() {
+      const start = document.getElementById("recommendUser").value.trim();
+      const algo = document.getElementById("algo").value;
+      if (!graph.has(start)) return log(`User ${start} not found.`);
+      const visited = new Set();
+      const recommendations = new Set();
+
+      if (algo === "BFS") {
+        const queue = [start];
+        visited.add(start);
+        let level = 0;
+        while (queue.length > 0 && level < 2) {
+          const len = queue.length;
+          for (let i = 0; i < len; i++) {
+            const node = queue.shift();
+            for (const neighbor of graph.get(node)) {
+              if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                queue.push(neighbor);
+                if (!graph.get(start).has(neighbor)) {
+                  recommendations.add(neighbor);
+                }
+              }
+            }
+          }
+          level++;
+        }
+      } else {
+        function dfs(node, depth) {
+          if (depth > 3) return;
+          visited.add(node);
+          for (const neighbor of graph.get(node)) {
+            if (!visited.has(neighbor)) {
+              if (!graph.get(start).has(neighbor) && neighbor !== start) {
+                recommendations.add(neighbor);
+              }
+              dfs(neighbor, depth + 1);
+            }
+          }
+        }
+        dfs(start, 0);
+      }
+
+      log(`Recommendations (${algo}): ${[...recommendations].join(", ") || "None"}`);
+    }
+
+    function drawGraph() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const nodes = Array.from(graph.keys());
+      const angleStep = (2 * Math.PI) / nodes.length;
+      const positions = new Map();
+
+      nodes.forEach((node, i) => {
+        const angle = i * angleStep;
+        const x = 400 + 200 * Math.cos(angle);
+        const y = 250 + 200 * Math.sin(angle);
+        positions.set(node, { x, y });
+      });
+
+      for (const [node, neighbors] of graph) {
+        const { x: x1, y: y1 } = positions.get(node);
+        neighbors.forEach(neighbor => {
+          const { x: x2, y: y2 } = positions.get(neighbor);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.strokeStyle = "#999";
+          ctx.stroke();
+        });
+      }
+
+      for (const [node, { x, y }] of positions) {
+        ctx.beginPath();
+        ctx.arc(x, y, 20, 0, 2 * Math.PI);
+        ctx.fillStyle = "#69c";
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 14px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(node, x, y);
+      }
+    }
+  </script>
+</body>
+</html>
